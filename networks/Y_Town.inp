@@ -1,0 +1,128 @@
+; Filename: networks/Hanoi_CMH.inp
+; WNTR: 0.1.3
+; Created: 2018-07-10 19:42:56
+[TITLE]
+
+[JUNCTIONS]
+;ID                      Elevation       Demand Pattern                 
+ 2                             0        250.0    P_0                       ;
+ 3                             0        400.0    P_0                       ;
+ 5                             0        300.0    P_0                       ;
+
+[RESERVOIRS]
+;ID                           Head                  Pattern
+ 1                             100                            ;
+ 4                             100                            ;
+
+[TANKS]
+;ID                      Elevation   Init Level    Min Level    Max Level     Diameter   Min Volume Volume Curve        
+
+[PIPES]
+;ID                   Node1                Node2                      Length     Diameter    Roughness   Minor Loss               Status
+ 1                    1                    2                          100.0      1000.0      120.0       0                        Open   ;
+ 2                    2                    3                          100.0      1000.0      120.0       0                        Open   ;
+ 3                    4                    3                          200.0      1000.0      120.0       0                        Open   ;
+ 4                    3                    5                          300.0      1000.0      120.0       0                        Open   ;
+
+[PUMPS]
+;ID                   Node1                Node2                Properties          
+
+[VALVES]
+;ID                   Node1                Node2                    Diameter Type      Setting   Minor Loss
+
+[EMITTERS]
+;ID        Flow coefficient
+
+[CURVES]
+;ID         X-Value      Y-Value     
+
+[PATTERNS]
+;ID        Multipliers
+ P_0 1.0
+
+[ENERGY]
+GLOBAL PRICE   0.0000
+GLOBAL PATTERN ""
+GLOBAL EFFIC   75.0000
+DEMAND CHARGE  0.0000
+
+[STATUS]
+;ID        Setting   
+
+[CONTROLS]
+
+[RULES]
+
+[DEMANDS]
+;ID        Demand     Pattern   
+
+[QUALITY]
+
+[REACTIONS]
+ ORDER BULK 1
+ ORDER WALL 1
+ ORDER TANK 1
+ GLOBAL BULK 0.0000    
+ GLOBAL WALL 0.0000    
+ LIMITING POTENTIAL 0.0000    
+ ROUGHNESS CORRELATION 0.0000    
+
+[SOURCES]
+;Node      Type       Quality    Pattern   
+
+[MIXING]
+;Tank ID             Model Fraction
+
+[OPTIONS]
+UNITS                CMH                 
+HEADLOSS             H-W                 
+QUALITY              NONE mg/L
+VISCOSITY            1
+DIFFUSIVITY          1
+SPECIFIC GRAVITY     1
+TRIALS               40
+ACCURACY             1e-08
+CHECKFREQ            2
+UNBALANCED           CONTINUE 10
+PATTERN              1                   
+DEMAND MULTIPLIER    1
+EMITTER EXPONENT     0.5
+TOLERANCE            1e-10
+
+[TIMES]
+DURATION             8760:00:00
+HYDRAULIC TIMESTEP   00:30:00
+PATTERN TIMESTEP     00:30:00
+PATTERN START        00:00:00
+REPORT TIMESTEP      00:30:00
+REPORT START         00:00:00
+START CLOCKTIME      00:00:00 AM
+QUALITY TIMESTEP     00:00:00
+STATISTIC            NONE      
+
+[REPORT]
+SUMMARY    NO
+
+[COORDINATES]
+;Node      X-Coord          Y-Coord   
+1          0.0              441.421356238
+2          70.710678119     370.710678119
+3          141.421356237    300.0
+4          282.842712476    441.421356238
+5          141.421356237    0.0
+
+
+[VERTICES]
+;Link      X-Coord    Y-Coord   
+
+[LABELS]
+
+[BACKDROP]
+DIMENSIONS 0.00 0.00 10000.00 10000.00
+UNITS None
+OFFSET 0.00 0.00
+
+[TAGS]
+;type      name       tag       
+
+[END]

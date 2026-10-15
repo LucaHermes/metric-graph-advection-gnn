@@ -1,0 +1,59 @@
+[TITLE]
+MSX Builder - Python Generated File
+
+[OPTIONS]
+AREA_UNITS  M2
+RATE_UNITS  HR
+SOLVER      RK5
+TIMESTEP    60
+RTOL        0.001
+ATOL        0.0001
+  
+[SPECIES]
+BULK        CL2    MG  
+
+[TANK]
+RATE        CL2    -Kb*CL2
+
+[SOURCES]
+;CONC/MASS/FLOW/SETPOINT   <nodeID>      <specieID>     <strength>     (<tseriesID>)
+
+[COEFFICIENTS]  
+PARAMETER Kb 1.3        ; Chlorine Decay Rate
+PARAMETER Kw 0.034       ; Wall-Reaction Rate
+CONSTANT Sc 846.15  
+
+
+[TERMS] 
+; As described in Section 4.5, D, LEN, and Re are reserved keywords 
+; for the Reynolds number, pipe diameter, and pipe length, respectively.
+
+SHt 0.0149*Re^0.88*Sc^0.3333 
+Interm D*Re*Sc/LEN 
+SHl 3.65 + 0.0668 * Interm / (1.0 + 0.04 * Interm^0.6667)       ; Sherwood number (s. https://docs.bentley.com/LiveContent/web/Bentley%20WaterGEMS%20SS6-v1/en/GUID-D7D70292-50F6-4066-A30E-3B98BBB2BF7B.html)
+SH STEP(Re-2300)*SHt+STEP(2300-RE)*SHl 
+Kf SH*0.00112/D         ; Mass-Transfer Coefficient
+
+[PIPE]  
+; 1st-order decay: -Kb*CL2
+; 1st-order pipe wall reaction: -(4/D)*Kw*Kf/(Kw+Kf)*CL2
+; RATE CL2 -Kb*CL2-(4/D)*Kw*Kf/(Kw+Kf)*CL2
+; Since Kf contains a term depending on flow (Reynolds number) this is
+; a more advanced reaction dynamic that involves temporal modelling
+; we resort to a simple pipe dependent relationship
+RATE CL2 -Kw*(4/D)*CL2
+
+[QUALITY]
+GLOBAL          CL2   0.
+
+
+[DIFFUSIVITY]
+;CL2 0.01
+
+[PARAMETERS]
+
+
+[PATTERNS]
+
+[REPORT]
+SPECIE     CL2  YES

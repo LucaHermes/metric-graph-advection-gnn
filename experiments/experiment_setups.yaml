@@ -1,0 +1,205 @@
+wds:
+  results_dir: Results/wds_experiments
+  sources_at:
+    - n300
+    - n115
+  time:
+    n_seconds: 43200
+    hydraulic_step: 60
+    quality_timestep: 1
+    pattern_step: 60
+    pattern_n_waves: 3
+    seed: 42
+  cT: 200
+  Tau: 500
+  defaults:
+    inp_file: networks/l_town_no_tanks.inp
+  experiments:
+    - id: 0
+      msx_file: networks/ltown.msx
+      remove_inline_nodes: false
+    - id: 1
+      msx_file: networks/simple_reactions.msx
+      remove_inline_nodes: false
+    - id: 2
+      msx_file: networks/ltown.msx
+      remove_inline_nodes: true
+    - id: 3
+      msx_file: networks/simple_reactions.msx
+      remove_inline_nodes: true
+
+pde_gnn:
+  root: /vol/water-futures/quality/mega_mp3
+  results_dir: Results/learning_reactions_leakage_fix_2
+  time:
+    n_seconds: 43200
+    hydraulic_step: 60
+    quality_timestep: 1
+    pattern_step: 60
+    pattern_n_waves: 3
+    seed: 42
+  cT: 1
+  Tau: 700
+  defaults:
+    data_splits:
+      train: 1000
+      test: 200
+      validation: 200
+    train:
+      inp_file: networks/Hanoi.inp
+      sources_at:
+        - "1"
+      equal_demand_at_nodes: false
+    test:
+      Hanoi:
+        inp_file: networks/Hanoi.inp
+        sources_at:
+          - "1"
+        equal_demand_at_nodes: false
+      L-Town:
+        inp_file: networks/l_town_no_tanks.inp
+        sources_at:
+          - R1
+          - R2
+        equal_demand_at_nodes: false
+  experiments:
+    - id: 0
+      train:
+        msx_file: networks/simple_reactions.msx
+        data_path: dataset
+      test:
+        Hanoi:
+          msx_file: networks/simple_reactions.msx
+          data_path: dataset
+        L-Town:
+          msx_file: networks/simple_reactions.msx
+          data_path: dataset
+    - id: 1
+      train:
+        msx_file: networks/ltown.msx
+        data_path: dataset_no_reactions
+      test:
+        Hanoi:
+          msx_file: networks/ltown.msx
+          data_path: dataset_no_reactions
+        L-Town:
+          msx_file: networks/ltown.msx
+          data_path: dataset_no_reactions
+    - id: 2
+      train:
+        msx_file: networks/complicated_reactions.msx
+        data_path: dataset_complicated
+      test:
+        Hanoi:
+          msx_file: networks/complicated_reactions.msx
+          data_path: dataset_complicated
+        L-Town:
+          msx_file: networks/complicated_reactions.msx
+          data_path: dataset_complicated
+
+time_complexity:
+  results_dir: /vol/water-futures/quality/mega_mp3/Results/performance2
+  wds_path: /tmp
+  time:
+    n_seconds: 54000
+    hydraulic_step: 60
+    quality_timestep: 1
+    pattern_step: 60
+    pattern_n_waves: 3
+    seed: 42
+  cT: 200
+  Tau: 700
+
+euclidean_1d:
+  results_dir: /vol/water-futures/quality/mega_mp3/Results/euclidean1_d
+  experiments:
+    - boundary_condition:
+        style: gaussian
+        loc: 40
+        scale: 11
+        index:
+          - 0
+      initial_value: null
+      flow_field:
+        kind: sine_pos
+        value: 0.3
+      domain:
+        x: 100
+      time: 100
+    - boundary_condition:
+        style: gaussian
+        loc: 40
+        scale: 11
+        index:
+          - 0
+      initial_value:
+        style: gaussian
+        loc: 50
+        scale: 12
+        index:
+          - 0
+      flow_field:
+        kind: sine_pos
+        value: 0.3
+      domain:
+        x: 100
+      time: 100
+    - boundary_condition:
+        style: gaussian
+        loc: 38
+        scale: 18
+        index:
+          - 0
+      initial_value: null
+      flow_field:
+        kind: sine_pos
+        value: 1.0
+      domain:
+        x: 100
+      time: 100
+    - boundary_condition:
+        style: gaussian
+        loc: 38
+        scale: 18
+        index:
+          - 0
+      initial_value:
+        style: gaussian
+        loc: 50
+        scale: 12
+        index:
+          - 0
+      flow_field:
+        kind: sine_pos
+        value: 1.0
+      domain:
+        x: 100
+      time: 100
+
+
+    - boundary_condition: null
+      initial_value:
+        style: gaussian
+        loc: 30
+        scale: 10
+      flow_field:
+        kind: sine
+        value: 2.0
+      domain:
+        x: 100
+      time: 100
+
+tuning:
+  root: /vol/water-futures/quality/mega_mp3
+  version: "7"
+  data_splits:
+    train: 1000
+    val: 200
+    test: 200
+  dataset_config:
+    inp_file: networks/Hanoi.inp
+    msx_file: networks/complicated_reactions.msx
+    sources_at:
+      - "1"
+    equal_demand_at_nodes: false
+    data_path: dataset_complicated

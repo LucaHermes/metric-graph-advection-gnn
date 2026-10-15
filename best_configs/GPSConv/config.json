@@ -1,0 +1,1 @@
+{"hidden_dim": 160, "num_layers": 6, "learning_rate": 0.0006556475421501164, "weight_decay": 1.933569755599643e-05, "batch_size": 16, "num_heads": 8, "dropout": 0.00033434779623546344, "attn_dropout": 0.17084917662721016, "conv": "nnconv"}

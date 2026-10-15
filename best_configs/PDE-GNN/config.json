@@ -1,0 +1,1 @@
+{"hidden_dim": 160, "num_layers": 6, "learning_rate": 0.0014896754155776573, "weight_decay": 7.299197449895597e-06, "batch_size": 64, "dropout": 0.1632398739313041, "train_Tau": 100, "step_size": 0.25, "clip_grad_norm": 0.5}

@@ -1,0 +1,107 @@
+import torch
+from functools import lru_cache
+
+class AdvectionModule(torch.nn.Module):
+    
+    def __init__(self, antialiasing=1, interpolation_mode='nearest', **kwargs):
+        super().__init__(**kwargs)
+        self.interpolation_mode = interpolation_mode
+        self.antialiasing = antialiasing
+    
+    def lift(self, x, smoothing=1.):
+        return x
+    def unlift(self, x, smoothing=1.):
+        return x
+    
+    def forward(self, x, flow):
+        raise NotImplementedError('Subclass this.')
+    
+class AdvectionModuleGridSampleDynamic(AdvectionModule):
+
+    @lru_cache(maxsize=2)
+    def grid(self, l, device):
+        return (
+            torch.linspace(-1, 1, l, device=device).view(1, 1, l),
+            ((l - 1) / 2)
+        )
+
+    def forward(self, x, flow):
+        B, L = x.shape[:2]
+        
+        # Gridsample only works for rank 4 or rank 5 tensors,
+        # expand to shape: [B, 1, 1, L]
+        x = x.transpose(2, 1).unsqueeze(2)  
+
+        # Create the grid: [1, 1, L]
+        grid, scale = self.grid(L, x.device)
+        grid = grid.expand(B, 1, L)
+        
+        # Normalize the shift
+        flow_normalized = flow.view(B, 1, L) / scale
+        shifted_grid = grid + flow_normalized
+        
+        # Add the second dimension for compatibility
+        shifted_grid = torch.stack([shifted_grid, torch.zeros_like(shifted_grid)], dim=-1)
+        #shifted_grid = shifted_grid.clamp(-1, 1)
+        # shape: [B, 1, 1, L]
+        shifted_tensor = torch.nn.functional.grid_sample(
+            x, shifted_grid, mode=self.interpolation_mode, padding_mode="border", 
+            align_corners=True
+        )
+
+        return shifted_tensor.squeeze(2).transpose(2, 1)
+
+    # def forward(self, x, flow):
+    #     B, L = x.shape[:2]
+    #     C = x.shape[2:]
+
+    #     # Create the grid: [1, L]
+    #     grid = torch.arange(L, device=x.device, dtype=flow.dtype).unsqueeze(0)
+    #     shifted_grid = grid + flow
+    #     shifted_grid = shifted_grid.clamp(0, L - 1)
+
+    #     left = shifted_grid.floor().long()
+    #     right = (left + 1).clamp_max(L - 1)
+
+    #     # Create interpolation weight: [B, L, 1]
+    #     weight = (shifted_grid - left).unsqueeze(-1)
+
+    #     left_idx = left.unsqueeze(-1).expand(-1, -1, *C)
+    #     right_idx = right.unsqueeze(-1).expand(-1, -1, *C)
+
+    #     x_left = torch.gather(x, 1, left_idx)
+    #     x_right = torch.gather(x, 1, right_idx)
+        
+    #     return x_left + weight * (x_right - x_left)
+    
+
+class AdvectionModuleGridSample(AdvectionModule):
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+    
+    def forward(self, x, flow):
+        B, L = x.shape[:2]
+
+        # Gridsample only works for rank 4 or rank 5 tensors,
+        # expand to shape: [B, 1, 1, L]
+        x = x.unsqueeze(1).unsqueeze(2)  
+
+        # Normalize the shift
+        grid = torch.linspace(-1, 1, L, device=x.device).view(1, 1, L, 1)
+        grid = grid.expand(B, 1, L, 1)  # Shape: (B, 1, L, 1)
+
+        # Add the shift (normalized to [-1, 1])
+        flow_normalized = (flow).view(B, 1, 1, 1) / ((L-1) / 2)
+        shifted_grid = grid + flow_normalized 
+
+        # Add the second dimension for compatibility
+        shifted_grid = torch.cat([shifted_grid, torch.zeros_like(shifted_grid)], dim=-1)
+        #shifted_grid = shifted_grid.clamp(-1, 1)
+
+        # shape: [B, 1, 1, L]
+        shifted_tensor = torch.nn.functional.grid_sample(
+            x, shifted_grid, mode="nearest", padding_mode="zeros", align_corners=True
+        )
+
+        return shifted_tensor.squeeze(1).squeeze(1)

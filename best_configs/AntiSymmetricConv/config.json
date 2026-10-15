@@ -1,0 +1,1 @@
+{"hidden_dim": 128, "num_layers": 6, "learning_rate": 0.0009173991107682957, "weight_decay": 0.00018607921231227363, "batch_size": 16, "phi": "gated_gnn", "num_iters": 50, "epsilon": 0.1, "gamma": 0.1}

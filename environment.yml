@@ -1,0 +1,36 @@
+name: quality
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+      - numpy
+      - scipy
+      # pandas version is kept fix to allow sharing dataframes 
+      # as pickle files, otherwise reading the files might fail
+      - pandas==2.2.3
+      - matplotlib
+      - scikit-learn
+      - ipython
+      - jupyterlab
+      - poetry
+      - pyzmq
+      - tqdm
+      - networkx
+      - rich
+      - pydub
+      - pygments
+      - pillow
+      - torchmetrics
+      - shapely
+      - pyproj
+      - pyarrow
+      - ray
+      - wandb
+      - tslearn
+      - openpyxl
+      - epyt-flow
+      - wntr
+      # Torch & CUDA packages installed via the script setup_env

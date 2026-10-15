@@ -1,0 +1,157 @@
+[TITLE]
+
+[JUNCTIONS]
+;ID                      Elevation       Demand Pattern                 
+ Injection                         50            -0.3 Unit                    ;
+ 1                                 50            0.0                          ;
+ 2                                 50            0.0                          ;
+ 3                                 50            0.2 p1                       ;
+
+[RESERVOIRS]
+;ID                                   Head                  Pattern
+ R1                                   50                        ;
+
+[TANKS]
+;ID                              Elevation           Init Level            Min Level            Max Level             Diameter           Min Volume Volume Curve         Overflow            
+
+[PIPES]
+;ID                   Node1                Node2                              Length             Diameter            Roughness           Minor Loss               Status
+ p1                   Injection            1                               10           304.8             5               0                 Open   ;
+ p2                   1                    2                               10           304.8             5               0                 Open   ;
+ p3                   2                    3                               10           304.8             5               0                 Open   ;
+ p4                   3                    R1                              10           304.8             5               0                 Open   ;
+
+[PUMPS]
+;ID                   Node1                Node2                Properties          
+
+[VALVES]
+;ID                   Node1                Node2                            Diameter Type              Setting           Minor Loss
+
+[TAGS]
+;type      name       tag       
+
+[DEMANDS]
+;ID        Demand     Pattern   
+
+[STATUS]
+;ID        Setting   
+
+[PATTERNS]
+;ID        Multipliers
+
+Unit 1.000000
+
+p1 0.000000 0.063424 0.126592 0.189251 0.251148 0.312033
+p1 0.371662 0.429795 0.486197 0.540641 0.592908 0.642788
+p1 0.690079 0.734592 0.776146 0.814576 0.849725 0.881453
+p1 0.909632 0.934148 0.954902 0.971812 0.984808 0.993838
+p1 0.998867 0.999874 0.996855 0.989821 0.978802 0.963842
+p1 0.945001 0.922354 0.895994 0.866025 0.832570 0.795762
+p1 0.755750 0.712694 0.666769 0.618159 0.567060 0.513677
+p1 0.458227 0.400931 0.342020 0.281733 0.220311 0.158001
+p1 0.095056 0.031728 0.000000 0.000000 0.000000 0.000000
+p1 0.000000 0.000000 0.000000 0.000000 0.000000 0.000000
+p1 0.000000 0.000000 0.000000 0.000000 0.000000 0.000000
+p1 0.000000 0.000000 0.000000 0.000000 0.000000 0.000000
+p1 0.000000 0.000000 0.000000 0.000000 0.000000 0.000000
+p1 0.000000 0.000000 0.000000 0.000000 0.000000 0.000000
+p1 0.000000 0.000000 0.000000 0.000000 0.000000 0.000000
+p1 0.000000 0.000000 0.000000 0.000000 0.000000 0.000000
+p1 0.000000 0.000000 0.000000 0.000000
+
+p2 0.000000 0.000000 0.000000 0.000000 0.000000 0.000000
+p2 0.000000 0.000000 0.000000 0.000000 0.000000 0.000000
+p2 0.000000 0.000000 0.000000 0.000000 0.000000 0.000000
+p2 0.000000 0.000000 0.000000 0.000000 0.000000 0.000000
+p2 0.000000 0.000000 0.000000 0.000000 0.000000 0.000000
+p2 0.000000 0.000000 0.000000 0.000000 0.000000 0.000000
+p2 0.000000 0.000000 0.000000 0.000000 0.000000 0.000000
+p2 0.000000 0.000000 0.000000 0.000000 0.000000 0.000000
+p2 0.000000 0.000000 0.031728 0.095056 0.158001 0.220311
+p2 0.281733 0.342020 0.400931 0.458227 0.513677 0.567060
+p2 0.618159 0.666769 0.712694 0.755750 0.795762 0.832570
+p2 0.866025 0.895994 0.922354 0.945001 0.963842 0.978802
+p2 0.989821 0.996855 0.999874 0.998867 0.993838 0.984808
+p2 0.971812 0.954902 0.934148 0.909632 0.881453 0.849725
+p2 0.814576 0.776146 0.734592 0.690079 0.642788 0.592908
+p2 0.540641 0.486197 0.429795 0.371662 0.312033 0.251148
+p2 0.189251 0.126592 0.063424 0.000000
+
+[CURVES]
+;ID         X-Value      Y-Value     
+
+[CONTROLS]
+
+[RULES]
+
+[ENERGY]
+GLOBAL PRICE           0.0000
+
+[EMITTERS]
+;ID        Flow coefficient
+
+[QUALITY]
+
+[SOURCES]
+;Node      Type       Quality    Pattern   
+
+[REACTIONS]
+;Type           Pipe/Tank               Coefficient
+
+ ORDER BULK 1
+ ORDER TANK 1
+ ORDER WALL 1
+ GLOBAL BULK 0.0000    
+ GLOBAL WALL 0.0000    
+
+[MIXING]
+;Tank ID             Model Fraction
+
+[TIMES]
+DURATION             00:01:40
+HYDRAULIC TIMESTEP   00:00:01
+QUALITY TIMESTEP     00:06:00
+PATTERN TIMESTEP     00:00:01
+PATTERN START        00:00:00
+REPORT TIMESTEP      00:00:01
+REPORT START         00:00:00
+START CLOCKTIME      00:00:00 AM
+RULE TIMESTEP        00:06:00
+STATISTIC            NONE      
+
+[REPORT]
+
+[OPTIONS]
+UNITS                CMH                 
+HEADLOSS             H-W                 
+SPECIFIC GRAVITY     1
+VISCOSITY            1
+TRIALS               200
+ACCURACY             0.001
+CHECKFREQ            2
+MAXCHECK             10
+UNBALANCED           STOP                
+PATTERN              1                   
+DEMAND MULTIPLIER    1
+EMITTER EXPONENT     0.5
+QUALITY              NONE                
+DIFFUSIVITY          1
+TOLERANCE            0.01
+
+[COORDINATES]
+;Node      X-Coord    Y-Coord   
+Injection          0.000000000          0.000000000
+R1                 100.000000000        0.000000000
+1                  25.000000000         0.000000000
+2                  50.000000000         0.000000000
+3                  75.000000000         0.000000000
+
+[VERTICES]
+;Link      X-Coord    Y-Coord   
+
+[LABELS]
+
+[BACKDROP]
+UNITS    NONE
+
+[END]

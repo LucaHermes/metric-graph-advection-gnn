@@ -1,0 +1,11 @@
+{
+    "x" : "default_model_inputs/{{WDS}}/x.npy",
+    "edge_index" : "default_model_inputs/{{WDS}}/edge_index.npy",
+    "flows" : "default_model_inputs/{{WDS}}/flows.npy",
+    "delay_steps" : "default_model_inputs/{{WDS}}/delay_steps.npy",
+    "sl_mask" : "default_model_inputs/{{WDS}}/sl_mask.npy",
+    "boundary_values" : "default_model_inputs/{{WDS}}/boundary_values.npy",
+    "boundary_index" : "default_model_inputs/{{WDS}}/boundary_index.npy",
+    "transit_times_pos" : "default_model_inputs/{{WDS}}/transit_times_pos.npy",
+    "transit_times_neg" : "default_model_inputs/{{WDS}}/transit_times_neg.npy"
+}

@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Interactive Graph with ONNX</title>
+<!-- <script src="https://unpkg.com/cytoscape/dist/cytoscape.min.js"></script> -->
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pixi.js@8.1.5/dist/pixi.min.js"></script>
+<style>
+  #cy {
+    width: 800px;
+    height: 600px;
+    border: 1px solid #ccc;
+  }
+</style>
+</head>
+<body>
+<h1>Interactive Graph with ML Prediction</h1>
+<!-- <div id="cy"></div> -->
+<canvas id="graphCanvas"></canvas>
+<script type="module">
+// import { fromArrayBuffer } from 'https://cdn.jsdelivr.net/npm/numpy-parser@1.0.0/+esm';
+// import * as NP from 'https://cdn.jsdelivr.net/npm/numpy-parser@1.0.0/+esm';
+import numpyParser from 'https://cdn.jsdelivr.net/npm/numpy-parser@1.2.3/+esm'
+
+
+function convert32to64(int32Arr) {
+    const bigInt64Arr = new BigInt64Array(int32Arr.length);
+    for (let i = 0; i < int32Arr.length; i++) {
+        bigInt64Arr[i] = BigInt(int32Arr[i]);
+    }
+    return bigInt64Arr
+}
+
+async function loadAllDefaultNPY(manifestUrl) {
+    // Load the manifest JSON
+    const manifestResp = await fetch(manifestUrl);
+    const manifest = await manifestResp.json();
+
+    const defaultInputs = {};
+
+    for (const [key, filePath] of Object.entries(manifest)) {
+        // Fetch the .npy file
+        const arrayBuffer = await fetch(filePath).then(r => r.arrayBuffer());
+
+        const npArray = numpyParser.fromArrayBuffer(arrayBuffer);
+        // defaultInputs[key] = npArray.data;
+        var dtype;
+
+        switch (npArray.data.constructor.name) {
+            case 'Float32Array': dtype = 'float32'; break;
+            case 'Float64Array': dtype = 'float64'; break;
+            case 'Int32Array':   dtype = 'int64'; npArray.data = convert32to64(npArray.data); break;
+            case 'Int16Array':   dtype = 'int16'; break;
+            case 'Int8Array':    dtype = 'int8'; break;
+            case 'Uint8Array':   dtype = 'uint8'; break;
+            case 'Uint16Array':  dtype = 'uint16'; break;
+            case 'Uint32Array':  dtype = 'uint32'; break;
+        }
+        var shape = npArray.shape;
+
+        if (key === "boundary_index") {
+            shape = [shape[0]];
+        }
+        
+        // console.log(key, npArray.shape, dtype);
+        defaultInputs[key] = new ort.Tensor(dtype, npArray.data, shape);
+    }
+
+    return defaultInputs;
+}
+
+const model_inputs = await loadAllDefaultNPY('default_model_inputs/default_inputs.json')
+
+
+// const edgeIndex = model_inputs["edge_index"]
+// const nodesSet = new Set([...edgeIndex[0], ...edgeIndex[1]]);
+// const nodes = Array.from(nodesSet);
+// const cyNodes = nodes.map(id => ({ data: { id: id.toString() } }));
+// const cyEdges = edgeIndex.source.map((src, i) => ({
+//   data: {
+//     source: src.toString(),
+//     target: edgeIndex.target[i].toString()
+//   }
+// }));
+// const elements = {
+//   nodes: cyNodes,
+//   edges: cyEdges
+// };
+
+let graphState = [0, 0, 0, 0]; // initial material at nodes A,B,C,D
+const nodeIds = ['A','B','C','D'];
+
+// .then(inputs => {
+//     console.log(inputs);
+//     // inputs.input1, input2, etc. are Float32Arrays
+// });
+model_inputs["Tau"] = new ort.Tensor('int64', new BigInt64Array(1), []);
+model_inputs["Tau"].cpuData[0] = "1";
+
+let session;
+
+async function updateEdges(modelOutput){
+    const numEdges = modelOutput.xT.dims[0];
+    const numSegments = modelOutput.xT.dims[1];
+    const totalFrames = modelOutput.xT.dims[2];
+    const data = modelOutput.xT.data;
+
+    let frameIndex = 0;
+
+    app.ticker.add(() => {
+    // maybe only update every N ticks if too fast
+    // if (frameIndex < totalFrames) {
+        if (frameIndex >= totalFrames) {
+            frameIndex = 0;
+        }
+        for (let e = 0; e < numEdges; e++) {
+            // for (let s = 0; s < numSegments; s++) {
+            const startIdx = e;
+            const endIdx = e;
+            const val = data.slice(startIdx * totalFrames + frameIndex, endIdx * totalFrames + frameIndex + 1);
+            const pipe = edgeSegments[startIdx]
+            const colors = pipe.geometry.getBuffer('color');
+            val.forEach((v, i) => {
+                colors.data[i*3] = v;       // R
+                colors.data[i*3+1] = 0;     // G
+                colors.data[i*3+2] = 1 - v; // B
+            });
+            colors.update();
+            //edgeSegments[startIdx].tint = valueToColor(val);
+            // }
+        }
+
+        frameIndex++;
+    // }
+    });
+}
+// --- 5. Run ONNX Model ---
+async function runModel(stateArray) {
+    // const input = new ort.Tensor('float32', Float32Array.from(stateArray), [1, stateArray.length]);
+    // model_inputs["n_steps"] = 4;
+    const output = await session.run(model_inputs);//{ input: input });
+    console.log("Done!");
+    await updateEdges(output);
+    // return Array.from(output.xT.data); // assuming output name is 'output'
+}
+
+function valueToColor(v, min=0, max=1) {
+  const ratio = (v - min) / (max - min);
+  const r = Math.floor(255 * ratio);
+  const g = Math.floor(255 * (1-ratio));
+  const b = 128;
+  return `rgb(${r},${g},${b})`;
+}
+// --- 4. Load ONNX Model ---
+async function loadModel() {
+    session = await ort.InferenceSession.create('mega_mp.onnx'); // your model path
+}
+loadModel();
+
+function drawNode(graphContainer, pos, nodeSize, color){
+    const node = new Graphics()
+        .circle(0, 0, nodeSize)
+        .fill(color); // Red node
+    node.x = Number(pos.x);
+    node.y = Number(pos.y);
+    //
+    graphContainer.addChild(node);
+}
+
+function drawEdge(graphContainer, source, target, width, color, numSegments){
+    const deltaX = target.x - source.x/10;
+    const deltaY = target.y - source.y/10;
+    const stepX = deltaX / numSegments;
+    const stepY = deltaY / numSegments;
+    const w = 4;
+    // normalize perpendicular vector
+    const length = Math.sqrt(deltaX*deltaX + deltaY*deltaY);
+    const perpX = -(deltaY / length) * (w/2);
+    const perpY = (deltaX / length) * (w/2);
+    const points = [];
+    const aUV = [];
+    const texture = Texture.WHITE;
+    var x = source.x/50;
+    var y = source.y/50;
+    points.push({ x, y });
+
+    for (let i = 0; i < numSegments; i++) {
+        const segXA = source.x/50 + i * stepX
+        const segYA = source.y/50 + i * stepY
+        const segXB = segXA + stepX
+        const segYB = segYA + stepY
+        const t1 = i / numSegments;
+        const t2 = (i+1) / numSegments;
+
+        const x1 = source.x/50 + deltaX * t1;
+        const y1 = source.y/50 + deltaY * t1;
+        const x2 = source.x/50 + deltaX * t2;
+        const y2 = source.y/50 + deltaY * t2;
+        
+        points.push(segXB, segYB);
+        var x = segXB;
+        var y = segYB;
+        points.push({ x, y });
+        //     x1 + perpX, y1 + perpY,   // vertex 0
+        //     x1 - perpX, y1 - perpY,   // vertex 1
+        //     x2 + perpX, y2 + perpY,   // vertex 2
+        //     x2 - perpX, y2 - perpY    // vertex 3
+        // );
+
+        aUV.push(0.5);
+    }
+    aUV.push(0);
+    // points.push(new Point(posB.x, posB.y));
+    // console.log(points);
+    // const pipeMesh = createGradientLine(points, aUV, 50)
+    // // const pipeMesh = new Mesh(geometry)
+    // // pipeMesh.texture = texture;
+    // // const pipe = new MeshRope({
+    // //     texture: texture,
+    // //     points,
+    // //     textureScale: 12.5,
+    // // });
+    // graphContainer.addChild(pipeMesh);
+    // return pipeMesh
+}
+
+async function buildGraph() {
+    // console.log(model_inputs["edge_index"]);
+    const edgeIndex = model_inputs["edge_index"];
+    const NEdges = edgeIndex.dims[1]
+    const senders = new Int32Array(NEdges);
+    senders.set(Array.from(edgeIndex.data.slice(0, NEdges), x => Number(x)));
+    const receivers = new Int32Array(NEdges);
+    receivers.set(Array.from(edgeIndex.data.slice(NEdges, 2 * NEdges), x => Number(x)));
+    const nodesSet = new Set([...senders, ...receivers]);
+    const nodes = Array.from(nodesSet);
+    // const cyNodes = nodes.map(id => ({ data: { id: id.toString() } }));
+
+    const nodePositions = await fetch("default_model_inputs/Hanoi/pos.json").then(response => response.json());
+    // 1. Get all 'x' values into a separate array
+    const xValues = nodes.map(p => nodePositions[p].x);
+
+    // 2. Get all 'y' values into a separate array
+    const yValues = nodes.map(p => nodePositions[p].y);
+
+    // 3. Find the min and max for 'x'
+    const minX = Math.min(...xValues);
+    const maxX = Math.max(...xValues);
+    // 4. Find the min and max for 'y'
+    const minY = Math.min(...yValues);
+    const maxY = Math.max(...yValues);
+
+    const cyNodes = nodes.map(p => ({
+        data: { id: p },
+        position: nodePositions[p] // { x: p.x, y: p.y }
+    }))
+    const cyEdgesAll = Array.from(senders).map((src, i) => ({
+    
+        s: (src),
+        t: (receivers[i])
+      
+    }));
+    // console.log(minX, minY, maxX, maxY);
+    // const elements = [
+    //   ...cyNodes, ...cyEdgesAll
+    // ];
+    // --- 3. Initialize Cytoscape ---
+    // var cy = cytoscape({
+    //     container: document.getElementById('cy'),
+    //     elements: elements,
+    //     style: [
+    //         { selector: 'node', style: { 'background-color': '#0074D9', 'label': 'data(id)', 'width': 40, 'height': 40 } },
+    //         { selector: 'edge', style: { 'line-color': '#ccc', 'width': 3 } }
+    //     ],
+    //     layout: { name: 'preset' },
+    // });
+
+    const graphContainer = new PIXI.Container();
+    const xRange = maxX - minX;
+    const yRange = maxY - minY;
+    // Screen Extents (from PixiJS app)
+    const screenWidth = app.screen.width;
+    const screenHeight = app.screen.height;
+
+    // Padding (e.g., 50 pixels on all sides)
+    const padding = 50;
+    const usableScreenWidth = screenWidth - 2 * padding;
+    const usableScreenHeight = screenHeight - 2 * padding;
+
+    // 1. Calculate the two potential scale factors (Screen Range / Data Range)
+    const scaleFactorX = usableScreenWidth / xRange;
+    const scaleFactorY = usableScreenHeight / yRange;
+
+    // 2. Use the smaller scale factor to ensure the entire graph fits
+    const uniformScale = Math.min(scaleFactorX, scaleFactorY);
+    graphContainer.scale.set(uniformScale);
+    graphContainer.x = padding - (minX * uniformScale);
+    graphContainer.y = padding - (minY * uniformScale);
+    // console.log(uniformScale, minX, minY, maxX, maxY)
+    app.stage.addChild(graphContainer);
+    // graphContainer.boundsArea = new Rectangle(minX - xRange * 0.1, minY - yRange * 0.1, maxX + xRange * 0.1, maxY + yRange * 0.1);
+    // graphContainer.boundsArea = new PIXI.Rectangle(minX, minY, maxX, maxY);
+    
+    // Example: Draw a Node
+    const nodeSize = 50;
+    const edgeWidth = 60;
+    const edgeColor = 0x00ff00;
+    const nodeColor = 0x00ff00;
+    const nz = 60;
+
+    nodes.map(p => ( 
+        drawNode(graphContainer, nodePositions[p], nodeSize, nodeColor)
+    ));
+    // console.log(nodePositions[nodes[0]]);
+    const edgeSegments = cyEdgesAll.map((p, i) => 
+        drawEdge(graphContainer, nodePositions[p.s], nodePositions[p.t], edgeWidth, edgeColor, nz)
+    ).flat();
+
+    // console.log(edgeSegments);
+    // Example: Animate the Node
+    // app.ticker.add(() => {
+    //     // This function runs every frame
+    //     nodeA.rotation += 0.01; // Simple rotation animation
+    // });
+
+    return edgeSegments;
+}
+
+const { Application, Graphics, Texture, Point, MeshRope, Geometry, Mesh } = PIXI;
+// 1. Create a PixiJS Application
+const app = new Application({
+    width: 800,
+    height: 600,
+    antialias: true,
+    preserveDrawingBuffer: false,
+    backgroundColor: 0x1099bb,
+    powerPreference: "high-performance", // or "low-power" on weak devices
+});
+let edgeSegments;
+// Asynchronously initialize the application
+async function init() {
+    await app.init({ 
+        resizeTo: window, // Make the canvas resize with the browser window
+        backgroundColor: 0x000000 // White background
+    });
+
+    // 2. Add the canvas to the document body
+    document.body.appendChild(app.canvas);
+
+    // Now you can start drawing your graph
+    edgeSegments = await buildGraph();
+}
+
+init(); 
+// let cy = await buildGraph();
+
+// --- 6. Update Graph Visualization ---
+function renderGraph(stateArray) {
+    cy.nodes().forEach((node, i) => {
+        let val = stateArray[i];
+        node.style('background-color', `rgb(${255-val*20}, ${val*20}, 50)`); // simple coloring
+        node.style('width', 30 + val*5);
+        node.style('height', 30 + val*5);
+    });
+}
+
+
+// --- 7. Handle Node Clicks ---
+// const nodeId = evt.target.id();
+// const idx = nodeIds.indexOf(nodeId);
+// graphState[idx] += 1; // inject 1 unit of material
+// graphState = await runModel(null); // run ML prediction
+// renderGraph(graphState);
+// (async () => {
+//   await loadModel();                // wait for model
+//   const result = await runModel(null); // now safe
+//   console.log(result);
+// })();
+
+
+     // Function to create a gradient line mesh
+      function createGradientLine(points, values, lineWidth = 5) {
+        // Normalize values to 0-1 range
+        const minVal = Math.min(...values);
+        const maxVal = Math.max(...values);
+        const normalizedValues = values.map(v => (v - minVal) / (maxVal - minVal));
+
+        const vertices = [];
+        const indices = [];
+        const colors = [];
+
+        // For each segment between two points, create a quad (4 vertices, 2 triangles)
+        for (let i = 0; i < points.length - 1; i++) {
+          const p0 = points[i];
+          const p1 = points[i + 1];
+          
+          // Calculate direction and perpendicular
+          const dx = p1.x - p0.x;
+          const dy = p1.y - p0.y;
+          const len = Math.sqrt(dx * dx + dy * dy);
+          
+          let perpX, perpY;
+          if (len > 0) {
+            perpX = -dy / len * lineWidth / 2;
+            perpY = dx / len * lineWidth / 2;
+          } else {
+            perpX = 0;
+            perpY = lineWidth / 2;
+          }
+
+          // Create 4 vertices for this segment (a quad)
+          const baseIndex = vertices.length / 4;
+            const v_idx = vertices.length / 2; 
+          
+        // Vertex 0 (Start Top): p0 + perp
+        vertices.push(p0.x + perpX, p0.y + perpY);
+        // Vertex 1 (Start Bottom): p0 - perp
+        vertices.push(p0.x - perpX, p0.y - perpY);
+        // Vertex 2 (End Top): p1 + perp
+        vertices.push(p1.x + perpX, p1.y + perpY);
+        // Vertex 3 (End Bottom): p1 - perp  <<-- This was the sign error
+        vertices.push(p1.x - perpX, p1.y - perpY); 
+
+          // Colors for this segment
+          const t0 = normalizedValues[i];
+          const r0 = t0 * 255;
+          const g0 = (1 - Math.abs(2 * t0 - 1)) * 255;
+          const b0 = (1 - t0) * 255;
+          const color0 = ((255 << 24) >>> 0) | ((b0 << 16) >>> 0) | ((g0 << 8) >>> 0) | (r0 >>> 0);
+          
+          const t1 = normalizedValues[i + 1];
+          const r1 = t1 * 255;
+          const g1 = (1 - Math.abs(2 * t1 - 1)) * 255;
+          const b1 = (1 - t1) * 255;
+          const color1 = ((255 << 24) >>> 0) | ((b1 << 16) >>> 0) | ((g1 << 8) >>> 0) | (r1 >>> 0);
+          
+        //   colors.push(0, 200/255, 0, 1.0); // start top
+        //   colors.push(0, 200/255, 0, 1.0); // start bottom
+        //   colors.push(0, 200/255, 0, 1.0); // end top
+        //   colors.push(0, 200/255, 0, 1.0); // end bottom
+            const TEST_COLOR = [1.0, 0.0, 0.0, 1.0]; 
+            
+            // Push 4 components (R, G, B, A) for all 4 vertices (16 components total)
+            colors.push(...TEST_COLOR); // Vertex 0
+            colors.push(...TEST_COLOR); // Vertex 1
+            colors.push(...TEST_COLOR); // Vertex 2
+            colors.push(...TEST_COLOR); // Vertex 3
+
+          // Create 2 triangles for this quad
+          // Triangle 1: 0, 1, 2javascript 
+          // The index should point to the START of the 4-vertex quad, 
+          // but indices are relative to the CURRENT total number of vertices. 
+          // Since you push 4 vertices per iteration, the correct base index is: 
+            // --- FIX: Indices Logic (Six indices for two triangles) ---
+            // Triangle 1: (v_idx + 0), (v_idx + 1), (v_idx + 2)
+        // Triangle 1: (v_idx + 0), (v_idx + 1), (v_idx + 2)
+        // Triangle 1: V0, V1, V2 (Start Top, Start Bottom, End Top)
+        indices.push(v_idx + 0, v_idx + 1, v_idx + 2); 
+        // Triangle 2: V2, V1, V3 (End Top, Start Bottom, End Bottom)
+        indices.push(v_idx + 2, v_idx + 1, v_idx + 3);
+
+        }
+
+        // Create geometry with proper buffer setup for PIXI v8
+        // console.log('Points:', points.length, 'Vertices:', vertices.length / 2, 'Indices:', indices.length, 'Colors:', colors.length);
+        // console.log('Max index:', Math.max(...indices), 'vs vertex count:', vertices.length / 2);
+        
+        // const positionBuffer = new Float32Array(vertices);
+        // const colorBuffer = new Uint32Array(colors);
+        // const indexBuffer = new Uint16Array(indices);
+        const geometry = new PIXI.Geometry({
+          attributes: {
+            aPosition: {
+              buffer: new Float32Array(vertices),
+              size: 2
+            },
+            aColor: {
+              buffer: new Float32Array(colors),
+              size: 4,
+              normalized: true
+            }
+          },
+            indexBuffer: new Uint16Array(indices)
+        });
+        
+        // console.log('Geometry attribute count:', geometry.attributes.aPosition.buffer.data.length / 2);
+        // console.log('Geometry attribute count:', colors);
+
+        // Create shader that uses vertex colors (WebGL1 compatible)
+        const shader = PIXI.Shader.from({
+          gl: {
+            vertex: `
+              attribute vec2 aPosition;
+              attribute vec4 aColor;
+
+              varying vec4 vColor;
+
+              uniform mat3 projectionMatrix;
+              uniform mat3 translationMatrix;
+              uniform mat3 uTransformMatrix;
+
+              void main() {
+                vColor = aColor;
+                mat3 mvp = projectionMatrix * translationMatrix * uTransformMatrix;
+                gl_Position = vec4((mvp * vec3(aPosition, 1.0)).xy, 0.0, 1.0);
+              }
+            `,
+            fragment: `
+              varying vec4 vColor;
+
+              void main() {
+                gl_FragColor = vColor;
+              }
+            `
+          }
+        });
+        
+        const mesh = new PIXI.Mesh(geometry, shader);
+        // mesh.texture = Texture.WHITE
+        app.stage.addChild(mesh);
+        return mesh;
+      }
+const vertices = new Float32Array([
+  271.12 , 600.12,   // top
+  271.12 , 550,   // bottom
+  301.12 , 550.12,   // top
+  301.12 , 600,   // bottom
+]);
+
+drawNode(app.stage, {x: 40, y: 40}, 4, 0x00ffff);
+drawNode(app.stage, {x: 100, y: 100}, 4, 0x00ff00);
+const meehs = createGradientLine(
+    new Float32Array([
+        271.12 , 600.12,   // top
+        301.12 , 600,   // bottom
+    ]), new Float32Array([
+        271.12 , 600.12
+    ])
+);
+app.stage.addChild(meehs);
+const indicess = new Uint16Array([0, 1, 2, 2, 3, 1]);
+
+
+const geometry = new PIXI.Geometry({
+  attributes: {
+    aPosition: {
+      buffer: new Float32Array([
+        5000, 5000,
+        0, 5000,
+        0, 0,
+        5000, 0
+      ]),
+      size: 2
+    },
+    aColor: {
+      buffer: new Float32Array([
+        1, 0, 0, 1,
+        0, 1, 0, 1,
+        0, 0, 1, 1,
+        1, 1, 0, 1
+      ]),
+      size: 4
+    }
+  },
+  index: new Uint16Array([0, 1, 2, 0, 2, 3])
+});
+
+const vertexShader = `
+attribute vec2 aPosition;
+attribute vec4 aColor;
+uniform mat3 projectionMatrix;
+varying vec4 vColor;
+void main() {
+  vColor = aColor;
+  vec3 pos = projectionMatrix * vec3(aPosition, 1.0);
+  gl_Position = vec4(pos.xy, 0.0, 1.0);
+}
+`;
+
+const fragmentShader = `
+precision mediump float;
+varying vec4 vColor;
+void main() {
+  gl_FragColor = vColor;
+}
+`;
+
+const shader = PIXI.Shader.from(vertexShader, fragmentShader);
+const mesh = new PIXI.Mesh(geometry, shader);
+mesh.state.cullFace = false; // disable culling
+
+app.stage.addChild(mesh);
+
+
+
+
+</script>
+</body>
+</html>

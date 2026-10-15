@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            margin: 0;
+            padding: 0px;
+            background: #d9d9dd;
+            font-family: Arial, sans-serif;
+            /* color: white; */
+        }
+        #canvas-container {
+            /* border: 2px solid #444; */
+            display: inline-block;
+        }
+        h2 {
+            margin-top: 0;
+        }
+        .info {
+            margin-left: 60px;
+            margin-right: 60px;
+            margin-top: 60px;
+            /* max-width: 800px;
+            max-width: 800px; */
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/pixi.js@8.1.5/dist/pixi.min.js"></script>
+    <script src="./shader.js"></script>
+    <!-- <script type="module" src="https://cdn.jsdelivr.net/npm/pixi-viewport@6.0.3/dist/pixi_viewport.js"></script> -->
+    <script type="module" src="./metricGraph.js"></script>
+    <script type="module" src="./readGraphData.js"></script>
+    <script type="module" src="./inference.js"></script>
+    <base href=".">
+</head>
+<body>
+    <div class="info">
+        <h1>MeGA-MP: Metric Graph Advection with Message Passing</h1>
+        <p>
+            This is a Demo of our Method MeGA-MP that has been converted to the ONNX format to run in the Browser.
+            The Demo features two water distribution systems called Hanoi and L-Town that we also use for evaluation in the paper.
+            Unlike in our test setup, for this demo the edge lengths and the time-varying flow field are fix. 
+            The boundary condition(s) can be manipulated via the slider to control the concentration at the inflow boundary node(s). 
+        </p>
+    </div>
+    <div id="canvas-container"></div>
+    <script type="module">
+        import { createMeshStrip, drawMetricGraph, drawInjectionControl, drawWDSSelectionControl } from './metricGraph.js';
+        import { loadAllDefaultNPY, buildGraph } from './readGraphData.js';
+        import { loadModel, runModel, getSegmentColor } from './inference.js';
+
+        const { Application } = PIXI;
+
+        const WDS = 0;
+        const wdsNames = ["Hanoi", "l_town_no_tanks"];
+        const wdsName = wdsNames[WDS];
+        
+        // Initialize PIXI application
+        const app = new PIXI.Application();
+
+        await app.init({
+            resizeTo: window, // Make the canvas resize with the browser window
+            antialias: true,
+            backgroundColor: 0xd9d9dd,
+            resolution: window.devicePixelRatio,
+            autoDensity: true
+        });
+
+        document.getElementById('canvas-container').appendChild(app.canvas);
+        
+        
+        let currentGraph = { 
+            edgeMeshes: null,
+            nodeGraphics: null, 
+            model_inputs: null
+        };
+        let graphContainer = new PIXI.Container();
+        let isSwitching = false;
+
+        const edgeData = [];
+        
+        let time = 0;
+        let lastTimeIdx = -1;
+        let batchStarted = false;
+        let lastEdgeData;
+        let lastOut;
+        let injLevel = 0.5;
+
+        // let currentGraph = new Proxy(_currentGraph, {
+        //     set: function (target, key, value) {
+        //         console.log(`${key} set to`, value);
+        //         target[key] = value;
+        //         return true;
+        //     }
+        // });
+        function drawLoadingOverlay() {
+            const overlay = new PIXI.Graphics();
+            overlay.beginFill(0x00000a, 0.6); // red tint, 50% opacity
+            overlay.drawRect(0, 0, app.screen.width, app.screen.height);
+            overlay.endFill();
+            overlay.zIndex = 100; 
+            const loadingText = new PIXI.Text({ text: 'Loading...', fill: 0xffffff, fontSize: 36, align: 'center' });
+            loadingText.anchor.set(0.5);
+            loadingText.x = app.screen.width / 2;
+            loadingText.y = app.screen.height / 2;
+            loadingText.zIndex = 101; 
+            overlay.addChild(loadingText);
+            return overlay;
+        }
+
+        async function switchWDS(wdsName) {
+            if (isSwitching) return;
+            const overlay = drawLoadingOverlay();
+            app.stage.addChild(overlay);
+            currentGraph.nodeGraphics = [];
+            currentGraph = null;
+            isSwitching = true;
+            console.log(wdsName);
+            app.stage.removeChild(graphContainer);
+            graphContainer.destroy({ children : true });
+            graphContainer = new PIXI.Container();
+            app.stage.addChild(graphContainer);
+            currentGraph = await init(graphContainer, wdsName);
+            app.stage.removeChild(overlay);
+            isSwitching = false;
+            lastOut = undefined;
+        } 
+
+        async function init(container, wdsName) {
+            const model_inputs = await loadAllDefaultNPY('default_model_inputs/default_inputs.json', wdsName);
+            const graph = await buildGraph(model_inputs, wdsName);
+
+            const WDS = wdsNames.indexOf(wdsName);
+            const nodeSize = [50, 5][WDS];
+            const edgeWidth = [60, 6][WDS];
+            const numSegments = [60, 5][WDS];
+            const timeScale = [0.3, 0.5][WDS];
+            const Tau = 5; // [5, 5][WDS];
+            const histSize = 30;
+
+            const { edgeMeshes, nodeGraphics } = drawMetricGraph(
+                container, graph, app.screen.width, app.screen.height, numSegments, nodeSize, edgeWidth
+            );
+
+            const modelFile = "mega_mp_" + wdsName + ".onnx";
+            await loadModel(modelFile);
+
+            return {
+                edgeMeshes: edgeMeshes,
+                nodeGraphics: nodeGraphics,
+                model_inputs,
+                graph,
+                timeScale,
+                wdsName,
+                nodeSize,
+                numSegments,
+                Tau,
+                histSize
+            };
+        }
+        
+        const {handle, slider} = drawInjectionControl(app, t => {
+            injLevel = t;
+        });
+
+        drawWDSSelectionControl(app, 'hanoi_logo.png', 0, t => {
+            switchWDS('Hanoi');
+        });
+        drawWDSSelectionControl(app, 'L-Town_logo.png', 1, t => {
+            switchWDS('l_town_no_tanks');
+        });
+        await switchWDS(wdsName);
+        
+        let chlorineInjection = new Array(currentGraph.histSize + currentGraph.Tau).fill(0);
+        const nodeColors = new Array(currentGraph.nodeGraphics.length).fill(null);
+        const finalNodeColors = new Array(currentGraph.nodeGraphics.length);
+
+        function updateNodeColor(nodeIdx, colorHex) {
+            const g = currentGraph.nodeGraphics[nodeIdx];
+            if (nodeColors[nodeIdx] === colorHex) return; // skip if color didn't change
+            nodeColors[nodeIdx] = colorHex;
+
+            g.clear();
+            g.beginFill(colorHex);
+            g.drawCircle(0, 0, currentGraph.nodeSize); // drawCircle is faster than circle()
+            g.endFill();
+        }
+
+        app.ticker.add((delta) => {
+            if (!currentGraph || !currentGraph.edgeMeshes || !currentGraph.nodeGraphics) return;
+
+            time += delta.deltaTime * currentGraph.timeScale;
+            
+            const batchReady = edgeData.length != 0;
+            const timeIdx = Math.floor(time % currentGraph.Tau);
+            const T = Math.floor(time / currentGraph.Tau);
+
+            if (lastTimeIdx == timeIdx) {
+                return; // this frame was already rendered
+            }
+            lastTimeIdx = timeIdx;
+
+            if (timeIdx == 0 && batchReady) {
+                // console.log('New Batch!');
+                lastEdgeData = edgeData.shift();
+                batchStarted = false;
+            }
+            if (!batchReady && !batchStarted) { // batch not ready, start computing next
+                lastOut = runModel(currentGraph.model_inputs, edgeData, T * currentGraph.Tau, lastOut, currentGraph.Tau, chlorineInjection, currentGraph.wdsName);
+                batchStarted = true;
+            }
+            if (lastEdgeData === undefined) {
+                return;
+            }
+            const batchIdx = Math.floor(time / currentGraph.Tau);
+            const edgedata = lastEdgeData.data;
+            
+            chlorineInjection.shift();
+            chlorineInjection.push(injLevel);
+
+            // animate
+
+            for (let edgeIdx = 0; edgeIdx < currentGraph.edgeMeshes.length; edgeIdx++) {
+                const edgemesh = currentGraph.edgeMeshes[edgeIdx];
+                const colorBuffer = edgemesh.geometry.getBuffer('aColor');
+                // color is 1080 long if 60 segments: 
+                // 60 [segs] * 2 [triangles] * 3 [points] * 3 [RGB]
+                const colors = colorBuffer.data;
+
+                // Since each segment consists of 6 vertices (3 for each triangle), 
+                // we will precompute the colors for each one
+                for (let segIdx = 0; segIdx < currentGraph["numSegments"]; segIdx++) {
+                    const c = getSegmentColor(lastEdgeData, edgeIdx, segIdx, timeIdx).gl();
+                    const offset = segIdx*6*3;
+                    // We have 18 color values per segment (6 vertices, 3 colors RGB)
+                    for (let i = 0; i < 6; i++) {
+                        const color_offset = offset + i*3;
+                        colors[color_offset]   = c[0];
+                        colors[color_offset+1] = c[1];
+                        colors[color_offset+2] = c[2];
+                    }
+                }
+                colorBuffer.update();
+                const s = currentGraph.graph.edges[edgeIdx].s;
+                const t = currentGraph.graph.edges[edgeIdx].t;
+                // store the latest color for each node
+                finalNodeColors[s] = getSegmentColor(lastEdgeData, edgeIdx, 0, timeIdx).hex();
+                finalNodeColors[t] = getSegmentColor(lastEdgeData, edgeIdx, currentGraph.numSegments-1, timeIdx).hex();
+            }
+
+            for (let nodeIdx = 0; nodeIdx < finalNodeColors.length; nodeIdx++) {
+                if (finalNodeColors[nodeIdx] != null) {
+                    updateNodeColor(nodeIdx, finalNodeColors[nodeIdx]);
+                }
+            }
+        });
+
+    </script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-# PhysicsInformed-WaterQualitySurrogate
+# MeGA-MP: Metric Graph Advection Message Passing
 
 ## Setup Instructions (Linux/macOS)
 
